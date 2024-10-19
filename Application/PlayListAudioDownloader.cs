@@ -24,15 +24,16 @@ public class PlayListAudioDownloader : AudioDownloader
             return;
         }
 
-        if (Directory.Exists(Path.Combine(Environment.CurrentDirectory, DEFAULT_OUTPUT_DIRECTORY, playListMetadata.Title)))
-        {
-            Console.WriteLine("A pasta já existe. A playlist não será baixada.");
-            return;
-        }
+        // if (Directory.Exists(Path.Combine(Environment.CurrentDirectory, DEFAULT_RAW_DOWNLOADED_DIRECTORY, playListMetadata.Title)))
+        // {
+        //     Console.WriteLine("A pasta já existe. A playlist não será baixada.");
+        //     return;
+        // }
 
         Console.WriteLine($"Baixando a playlist: {playListMetadata.Title}");
         IAsyncEnumerable<PlaylistVideo> videos = youtube.Playlists.GetVideosAsync(playlistUrl);
         
+        Directory.CreateDirectory(Path.Combine(Environment.CurrentDirectory, DEFAULT_RAW_DOWNLOADED_DIRECTORY, playListMetadata.Title));
         Directory.CreateDirectory(Path.Combine(Environment.CurrentDirectory, DEFAULT_OUTPUT_DIRECTORY, playListMetadata.Title));
 
         var downloads = new List<Task>();
@@ -45,7 +46,7 @@ public class PlayListAudioDownloader : AudioDownloader
         } 
 
         await Task.WhenAll(downloads); 
-        // _progressDictionary.Clear();
+        ClearRawDowloadDirectory();
     }
 
     private async Task DoDownloadAsync(PlaylistVideo video, YoutubeClient youtubeClient, Playlist playlistMetadata, int counter, int totalVideos)
@@ -59,10 +60,24 @@ public class PlayListAudioDownloader : AudioDownloader
         var streamManifest = await youtubeClient.Videos.Streams.GetManifestAsync(video.Id);
 
         var audioStreamInfo = streamManifest.GetAudioOnlyStreams().GetWithHighestBitrate();
+        var title = SanitizeTitle(video.Title);
+        var folderName = SanitizeTitle(playlistMetadata.Title);
 
-        var audioFilePath = Path.Combine(Environment.CurrentDirectory, DEFAULT_OUTPUT_DIRECTORY, playlistMetadata.Title, $"{GetCounterString(counter, totalVideos)} - {video.Title}.{DEFAULT_OUTPUT_FORMAT}");
+        var originalAudioPath = Path.Combine(Environment.CurrentDirectory, DEFAULT_RAW_DOWNLOADED_DIRECTORY, folderName, $"{GetCounterString(counter, totalVideos)} - {title}.{RAW_FORMAT}");
+        var convertedAudioPath = Path.Combine(Environment.CurrentDirectory, DEFAULT_OUTPUT_DIRECTORY, folderName, $"{GetCounterString(counter, totalVideos)} - {title}.{DEFAULT_OUTPUT_FORMAT}");
 
-        await youtubeClient.Videos.Streams.DownloadAsync(audioStreamInfo, audioFilePath, progressHandler);
+        await youtubeClient.Videos.Streams.DownloadAsync(audioStreamInfo, originalAudioPath, progressHandler);
+
+        // Obtém informações do autor (artista) e canal (álbum)
+        string artist = video.Author.ChannelTitle; // O nome do autor do vídeo (artista)
+        string album = folderName;
+
+        var audioConverter = new AudioConverter();
+        await audioConverter.ConvertToMp3(originalAudioPath, convertedAudioPath);
+
+        // Adiciona metadados ao arquivo de áudio
+        var metadataEditor = new AudioMetadataEditor();
+        metadataEditor.AddMetadata(convertedAudioPath, video.Title, artist, album);
     }
 
     private string GetCounterString(int counter, int total)
@@ -82,4 +97,6 @@ public class PlayListAudioDownloader : AudioDownloader
 
         }
     }
+
+    
 }
