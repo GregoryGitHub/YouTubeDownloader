@@ -36,7 +36,7 @@ public class SingleAudioDownloader : AudioDownloader
         string album = video.Author.ChannelTitle;  // O nome do canal como álbum
 
         var audioConverter = new AudioConverter();
-        audioConverter.ConvertToMp3(originalAudioPath, convertedAudioPath);
+        await audioConverter.ConvertToMp3(originalAudioPath, convertedAudioPath);
 
         // Adiciona metadados ao arquivo de áudio
         var metadataEditor = new AudioMetadataEditor();
